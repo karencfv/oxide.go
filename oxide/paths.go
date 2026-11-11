@@ -2292,6 +2292,7 @@ func (c *Client) CertificateView(
 }
 
 // CertificateDelete: Delete TLS certificate in current silo
+// The silo's last certificate cannot be deleted. Create another certificate first.
 func (c *Client) CertificateDelete(ctx context.Context, params CertificateDeleteParams) error {
 	if err := params.Validate(); err != nil {
 		return err
@@ -5024,6 +5025,7 @@ func (c *Client) InstanceReboot(
 			"instance": string(params.Instance),
 		},
 		map[string]string{
+			"force":   strconv.FormatBool(*params.Force),
 			"project": string(params.Project),
 		},
 	)
@@ -5306,6 +5308,7 @@ func (c *Client) InstanceStop(ctx context.Context, params InstanceStopParams) (*
 			"instance": string(params.Instance),
 		},
 		map[string]string{
+			"force":   strconv.FormatBool(*params.Force),
 			"project": string(params.Project),
 		},
 	)
@@ -8323,6 +8326,8 @@ func (c *Client) SiloCertificateView(
 // The silo must be specified if the certificate is specified by name, and must not be specified if
 // the certificate
 // is specified by ID.
+//
+// The silo's last certificate cannot be deleted. Create another certificate first.
 func (c *Client) SiloCertificateDelete(
 	ctx context.Context,
 	params SiloCertificateDeleteParams,
@@ -8902,6 +8907,92 @@ func (c *Client) RackListAllPages(ctx context.Context, params RackListParams) ([
 	params.Limit = NewPointer(100)
 	for {
 		page, err := c.RackList(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		allPages = append(allPages, page.Items...)
+		if page.NextPage == "" || page.NextPage == params.PageToken {
+			break
+		}
+		params.PageToken = page.NextPage
+	}
+
+	return allPages, nil
+}
+
+// RackListUnadopted: List unadopted racks
+// Lists racks that have joined the underlay network but have not yet been adopted into the regional
+// cluster.
+//
+// To iterate over all pages, use the `RackListUnadoptedAllPages` method, instead.
+func (c *Client) RackListUnadopted(
+	ctx context.Context,
+	params RackListUnadoptedParams,
+) (*UnadoptedRackResultsPage, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	// Create the request
+	req, err := c.buildRequest(
+		ctx,
+		nil,
+		"GET",
+		resolveRelative(c.host, "/v1/system/hardware/racks-unadopted"),
+		map[string]string{},
+		map[string]string{
+			"limit":      PointerIntToStr(params.Limit),
+			"page_token": params.PageToken,
+			"sort_by":    string(params.SortBy),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error building request: %v", err)
+	}
+
+	// Send the request.
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Create and return an HTTPError when an error response code is received.
+	if err := NewHTTPError(resp); err != nil {
+		return nil, err
+	}
+
+	// Decode the body from the response.
+	if resp.Body == nil {
+		return nil, errors.New("request returned an empty body in the response")
+	}
+
+	var body UnadoptedRackResultsPage
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("error decoding response body: %v", err)
+	}
+
+	// Return the response.
+	return &body, nil
+}
+
+// RackListUnadoptedAllPages: List unadopted racks
+// Lists racks that have joined the underlay network but have not yet been adopted into the regional
+// cluster.
+//
+// This method is a wrapper around the `RackListUnadopted` method.
+// This method returns all the pages at once.
+func (c *Client) RackListUnadoptedAllPages(
+	ctx context.Context,
+	params RackListUnadoptedParams,
+) ([]UnadoptedRack, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	var allPages []UnadoptedRack
+	params.PageToken = ""
+	params.Limit = NewPointer(100)
+	for {
+		page, err := c.RackListUnadopted(ctx, params)
 		if err != nil {
 			return nil, err
 		}

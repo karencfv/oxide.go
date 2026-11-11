@@ -14,6 +14,9 @@ import (
 	"time"
 )
 
+// AcpiTimeoutSecs is aCPI power button timeout in seconds.
+type AcpiTimeoutSecs uint64
+
 // Address is an address tied to an address lot.
 //
 // Required fields:
@@ -6666,6 +6669,7 @@ func (v ImportExportPolicy) AsAllow() (*ImportExportPolicyAllow, bool) {
 // - Ncpus
 // - ProjectId
 // - RunState
+// - ShutdownPolicy
 // - TimeCreated
 // - TimeModified
 // - TimeRunStateUpdated
@@ -6726,6 +6730,10 @@ type Instance struct {
 	// includes states related
 	// to the Instance's lifecycle
 	RunState InstanceState `json:"run_state" yaml:"run_state"`
+	// ShutdownPolicy is the method by which the instance will be powered down when transitioning to
+	// the stopped
+	// state, either forcefully or by giving the guest an ACPI power button signal first.
+	ShutdownPolicy InstanceShutdownPolicy `json:"shutdown_policy" yaml:"shutdown_policy"`
 	// TimeCreated is timestamp when this resource was created
 	TimeCreated *time.Time `json:"time_created" yaml:"time_created"`
 	// TimeLastAutoRestarted is the timestamp of the most recent time this instance was
@@ -6833,6 +6841,16 @@ type InstanceCreate struct {
 	Ncpus InstanceCpuCount `json:"ncpus" yaml:"ncpus"`
 	// NetworkInterfaces is the network interfaces to be created for this instance.
 	NetworkInterfaces InstanceNetworkInterfaceAttachment `json:"network_interfaces,omitzero" yaml:"network_interfaces,omitzero"`
+	// ShutdownPolicy is the method by which the instance should be stopped.
+	//
+	// This determines what action the control plane performs when stopping this instance, either
+	// due to a request to the `instance_stop` or `instance_reboot` API endpoints, or because the
+	// instance must be restarted in order
+	// to update system software on the sled that was hosting it.
+	//
+	// If not provided, the current default policy will be selected (hard power off without an ACPI
+	// soft shutdown).
+	ShutdownPolicy InstanceShutdownPolicy `json:"shutdown_policy,omitzero" yaml:"shutdown_policy,omitzero"`
 	// SshPublicKeys is an allowlist of SSH public keys to be transferred to the instance via
 	// cloud-init during
 	// instance creation.
@@ -7268,6 +7286,107 @@ type InstanceSerialConsoleData struct {
 	LastByteOffset *uint64 `json:"last_byte_offset" yaml:"last_byte_offset"`
 }
 
+// instanceShutdownPolicyVariant is implemented by InstanceShutdownPolicy variants.
+type instanceShutdownPolicyVariant interface {
+	isInstanceShutdownPolicyVariant()
+}
+
+// InstanceShutdownPolicyAction is the type definition for a InstanceShutdownPolicyAction.
+type InstanceShutdownPolicyAction string
+
+// InstanceShutdownPolicyHardOff is a variant of InstanceShutdownPolicy.
+type InstanceShutdownPolicyHardOff struct {
+}
+
+func (InstanceShutdownPolicyHardOff) isInstanceShutdownPolicyVariant() {}
+
+// InstanceShutdownPolicyPowerButton is a variant of InstanceShutdownPolicy.
+type InstanceShutdownPolicyPowerButton struct {
+	// TimeoutSecs is aCPI power button timeout in seconds.
+	TimeoutSecs AcpiTimeoutSecs `json:"timeout_secs" yaml:"timeout_secs"`
+}
+
+func (InstanceShutdownPolicyPowerButton) isInstanceShutdownPolicyVariant() {}
+
+// InstanceShutdownPolicy is instance-stopping method choices
+type InstanceShutdownPolicy struct {
+	Value instanceShutdownPolicyVariant
+}
+
+func (v InstanceShutdownPolicy) Action() InstanceShutdownPolicyAction {
+	switch v.Value.(type) {
+	case InstanceShutdownPolicyHardOff, *InstanceShutdownPolicyHardOff:
+		return InstanceShutdownPolicyActionHardOff
+	case InstanceShutdownPolicyPowerButton, *InstanceShutdownPolicyPowerButton:
+		return InstanceShutdownPolicyActionPowerButton
+	default:
+		return ""
+	}
+}
+
+func (v *InstanceShutdownPolicy) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+	type discriminator struct {
+		Type string `json:"action"`
+	}
+	var d discriminator
+	if err := json.Unmarshal(data, &d); err != nil {
+		return err
+	}
+
+	var value instanceShutdownPolicyVariant
+	switch d.Type {
+	case "hard_off":
+		value = &InstanceShutdownPolicyHardOff{}
+	case "power_button":
+		value = &InstanceShutdownPolicyPowerButton{}
+	default:
+		return fmt.Errorf("unknown variant %q, expected 'hard_off' or 'power_button'", d.Type)
+	}
+	if err := json.Unmarshal(data, value); err != nil {
+		return err
+	}
+	v.Value = value
+	return nil
+}
+
+func (v InstanceShutdownPolicy) MarshalJSON() ([]byte, error) {
+	if v.Value == nil {
+		return []byte("null"), nil
+	}
+	m := make(map[string]any)
+	m["action"] = v.Action()
+	valueBytes, err := json.Marshal(v.Value)
+	if err != nil {
+		return nil, err
+	}
+	var valueMap map[string]any
+	if err := json.Unmarshal(valueBytes, &valueMap); err != nil {
+		return nil, err
+	}
+	for k, val := range valueMap {
+		m[k] = val
+	}
+	return json.Marshal(m)
+}
+
+// AsHardOff attempts to convert the InstanceShutdownPolicy to a InstanceShutdownPolicyHardOff.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v InstanceShutdownPolicy) AsHardOff() (*InstanceShutdownPolicyHardOff, bool) {
+	val, ok := v.Value.(*InstanceShutdownPolicyHardOff)
+	return val, ok
+}
+
+// AsPowerButton attempts to convert the InstanceShutdownPolicy to a
+// InstanceShutdownPolicyPowerButton.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v InstanceShutdownPolicy) AsPowerButton() (*InstanceShutdownPolicyPowerButton, bool) {
+	val, ok := v.Value.(*InstanceShutdownPolicyPowerButton)
+	return val, ok
+}
+
 // InstanceState is the instance is being created.
 type InstanceState string
 
@@ -7333,6 +7452,11 @@ type InstanceUpdate struct {
 	MulticastGroups []MulticastGroupJoinSpec `json:"multicast_groups" yaml:"multicast_groups"`
 	// Ncpus is the number of vCPUs to be allocated to the instance
 	Ncpus InstanceCpuCount `json:"ncpus" yaml:"ncpus"`
+	// ShutdownPolicy is the method by which the instance should be stopped. If omitted from the
+	// update request, the instance's existing shutdown policy is left as-is. Changes to
+	// soft-shutdown timeout do not affect instances that
+	// are already in the process of shutting down until their next start.
+	ShutdownPolicy InstanceShutdownPolicy `json:"shutdown_policy,omitzero" yaml:"shutdown_policy,omitzero"`
 }
 
 // InterfaceNumUnknown is the type definition for a InterfaceNumUnknown.
@@ -9736,7 +9860,11 @@ type Rack struct {
 // Required fields:
 // - SledIds
 type RackMembershipAddSledsRequest struct {
-	SledIds []BaseboardId `json:"sled_ids" yaml:"sled_ids"`
+	// OverridePrechecks is optional overrides for various safety checks
+	//
+	// Overriding checks is dangerous and should only be done at the direction of Oxide support.
+	OverridePrechecks SledAddPrecheckOverrides `json:"override_prechecks,omitempty" yaml:"override_prechecks,omitempty"`
+	SledIds           []BaseboardId            `json:"sled_ids"                     yaml:"sled_ids"`
 }
 
 // RackMembershipChangeState is the type definition for a RackMembershipChangeState.
@@ -10859,6 +10987,37 @@ type Sled struct {
 	UsableHardwareThreads *int `json:"usable_hardware_threads" yaml:"usable_hardware_threads"`
 	// UsablePhysicalRam is amount of RAM which may be used by the Sled's OS
 	UsablePhysicalRam ByteCount `json:"usable_physical_ram" yaml:"usable_physical_ram"`
+}
+
+// SledAddPrecheckOverrides is instructs the system to override safety checks when adding a sled
+type SledAddPrecheckOverrides struct {
+	// AllowUnverifiedSledSoftware is add the requested sleds even if their software does not match
+	// the current target
+	// release
+	//
+	// This allows sleds to be added even when their SP, RoT, RoT bootloader, or host OS phase 1
+	// images cannot be confirmed to match those expected by the control plane. Adding sleds with
+	// mismatched software is not supported
+	// since the control plane needs compatible versions in order to communicate with the sled.
+	//
+	// This override is provided for working around bugs and only in emergency situations. It should
+	// not generally be
+	// used.
+	AllowUnverifiedSledSoftware *bool `json:"allow_unverified_sled_software,omitempty" yaml:"allow_unverified_sled_software,omitempty"`
+	// AllowWithoutSettledTargetRelease is add the requested sleds even if the system has not
+	// settled on its
+	// current target release
+	//
+	// This allows sleds to be added when the system is in the middle of a software update or if it
+	// has recently been MUPdated and that MUPdate hasn't been resolved. This is not generally
+	// supported because in order for adding a sled to work, the versions of software on that sled
+	// must match the rest of the control plane, but that's not
+	// well-defined in these two cases.
+	//
+	// This override is provided for working around bugs and only in emergency situations. It should
+	// not generally be
+	// used.
+	AllowWithoutSettledTargetRelease *bool `json:"allow_without_settled_target_release,omitempty" yaml:"allow_without_settled_target_release,omitempty"`
 }
 
 // SledInstance is an operator's view of an instance running on a given sled
@@ -12131,6 +12290,54 @@ type UnadoptedPhysicalDiskResultsPage struct {
 	Items []UnadoptedPhysicalDisk `json:"items" yaml:"items"`
 	// NextPage is token used to fetch the next page of results (if any)
 	NextPage string `json:"next_page,omitempty" yaml:"next_page,omitempty"`
+}
+
+// UnadoptedRack is view of a rack that's joined the underlay network but hasn't been adopted into
+// the regional
+// cluster yet
+//
+// Required fields:
+// - RackId
+// - RackSubnet
+// - UnadoptedSleds
+type UnadoptedRack struct {
+	RackId string `json:"rack_id" yaml:"rack_id"`
+	// RackSubnet is an IPv6 subnet, including prefix and subnet mask
+	RackSubnet     Ipv6Net         `json:"rack_subnet"     yaml:"rack_subnet"`
+	UnadoptedSleds []UnadoptedSled `json:"unadopted_sleds" yaml:"unadopted_sleds"`
+}
+
+// UnadoptedRackResultsPage is a single page of results
+//
+// Required fields:
+// - Items
+type UnadoptedRackResultsPage struct {
+	// Items is list of items on this page of results
+	Items []UnadoptedRack `json:"items" yaml:"items"`
+	// NextPage is token used to fetch the next page of results (if any)
+	NextPage string `json:"next_page,omitempty" yaml:"next_page,omitempty"`
+}
+
+// UnadoptedSled is view of an unadopted sled in an unadopted rack
+//
+// This is distinct from an `UninitializedSled`, which represents an uninitialized sled in an
+// *adopted* rack;
+// by contrast, this represents a sled in a rack that hasn't been adopted yet.
+//
+// Required fields:
+// - BaseboardId
+// - SledAgentStarted
+// - SledId
+type UnadoptedSled struct {
+	// BaseboardId is a representation of a Baseboard ID as used in the inventory subsystem.
+	//
+	// This type is essentially the same as a `Baseboard` except it doesn't have a revision or HW
+	// type (Gimlet, PC,
+	// Unknown).
+	BaseboardId      BaseboardId `json:"baseboard_id"             yaml:"baseboard_id"`
+	LastStartErr     string      `json:"last_start_err,omitempty" yaml:"last_start_err,omitempty"`
+	SledAgentStarted *bool       `json:"sled_agent_started"       yaml:"sled_agent_started"`
+	SledId           string      `json:"sled_id"                  yaml:"sled_id"`
 }
 
 // UninitializedSled is a sled that has not been added to an initialized rack yet
@@ -14657,6 +14864,7 @@ type InstanceMulticastGroupJoinParams struct {
 // Required fields:
 // - Instance
 type InstanceRebootParams struct {
+	Force    *bool    `json:"force,omitempty"    yaml:"force,omitempty"`
 	Project  NameOrId `json:"project,omitempty"  yaml:"project,omitempty"`
 	Instance NameOrId `json:"instance,omitempty" yaml:"instance,omitempty"`
 }
@@ -14709,6 +14917,7 @@ type InstanceStartParams struct {
 // Required fields:
 // - Instance
 type InstanceStopParams struct {
+	Force    *bool    `json:"force,omitempty"    yaml:"force,omitempty"`
 	Project  NameOrId `json:"project,omitempty"  yaml:"project,omitempty"`
 	Instance NameOrId `json:"instance,omitempty" yaml:"instance,omitempty"`
 }
@@ -15243,6 +15452,13 @@ type NetworkingSwitchPortLldpNeighborsParams struct {
 
 // RackListParams is the request parameters for RackList
 type RackListParams struct {
+	Limit     *int       `json:"limit,omitempty"      yaml:"limit,omitempty"`
+	PageToken string     `json:"page_token,omitempty" yaml:"page_token,omitempty"`
+	SortBy    IdSortMode `json:"sort_by,omitempty"    yaml:"sort_by,omitempty"`
+}
+
+// RackListUnadoptedParams is the request parameters for RackListUnadopted
+type RackListUnadoptedParams struct {
 	Limit     *int       `json:"limit,omitempty"      yaml:"limit,omitempty"`
 	PageToken string     `json:"page_token,omitempty" yaml:"page_token,omitempty"`
 	SortBy    IdSortMode `json:"sort_by,omitempty"    yaml:"sort_by,omitempty"`
@@ -18236,6 +18452,15 @@ func (p *RackListParams) Validate() error {
 	return nil
 }
 
+// Validate verifies all required fields for RackListUnadoptedParams are set
+func (p *RackListUnadoptedParams) Validate() error {
+	v := new(Validator)
+	if !v.IsValid() {
+		return fmt.Errorf("validation error:\n%v", v.Error())
+	}
+	return nil
+}
+
 // Validate verifies all required fields for RackViewParams are set
 func (p *RackViewParams) Validate() error {
 	v := new(Validator)
@@ -20384,6 +20609,13 @@ const InstanceNetworkInterfaceAttachmentTypeDefaultDualStack InstanceNetworkInte
 // `"none"`.
 const InstanceNetworkInterfaceAttachmentTypeNone InstanceNetworkInterfaceAttachmentType = "none"
 
+// InstanceShutdownPolicyActionHardOff represents the InstanceShutdownPolicyAction `"hard_off"`.
+const InstanceShutdownPolicyActionHardOff InstanceShutdownPolicyAction = "hard_off"
+
+// InstanceShutdownPolicyActionPowerButton represents the InstanceShutdownPolicyAction
+// `"power_button"`.
+const InstanceShutdownPolicyActionPowerButton InstanceShutdownPolicyAction = "power_button"
+
 // InstanceStateCreating represents the InstanceState `"creating"`.
 const InstanceStateCreating InstanceState = "creating"
 
@@ -21299,6 +21531,13 @@ var InstanceNetworkInterfaceAttachmentTypeCollection = []InstanceNetworkInterfac
 	InstanceNetworkInterfaceAttachmentTypeDefaultIpv4,
 	InstanceNetworkInterfaceAttachmentTypeDefaultIpv6,
 	InstanceNetworkInterfaceAttachmentTypeNone,
+}
+
+// InstanceShutdownPolicyActionCollection is the collection of all InstanceShutdownPolicyAction
+// values.
+var InstanceShutdownPolicyActionCollection = []InstanceShutdownPolicyAction{
+	InstanceShutdownPolicyActionHardOff,
+	InstanceShutdownPolicyActionPowerButton,
 }
 
 // InstanceStateCollection is the collection of all InstanceState values.
