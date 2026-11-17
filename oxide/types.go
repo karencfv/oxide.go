@@ -6546,6 +6546,238 @@ func (v ImageSource) AsSnapshot() (*ImageSourceSnapshot, bool) {
 	return val, ok
 }
 
+// ImpactState is the resource is currently impacted by the active problem.
+type ImpactState string
+
+// impactedResourceVariant is implemented by ImpactedResource variants.
+type impactedResourceVariant interface {
+	isImpactedResourceVariant()
+}
+
+// ImpactedResourceResourceType is the type definition for a ImpactedResourceResourceType.
+type ImpactedResourceResourceType string
+
+// ImpactedResourceSled is a variant of ImpactedResource.
+type ImpactedResourceSled struct {
+	Id string `json:"id" yaml:"id"`
+}
+
+func (ImpactedResourceSled) isImpactedResourceVariant() {}
+
+// ImpactedResourceSwitch is a variant of ImpactedResource.
+type ImpactedResourceSwitch struct {
+	Id string `json:"id" yaml:"id"`
+}
+
+func (ImpactedResourceSwitch) isImpactedResourceVariant() {}
+
+// ImpactedResourceSwitchPort is a variant of ImpactedResource.
+type ImpactedResourceSwitchPort struct {
+	Id string `json:"id" yaml:"id"`
+}
+
+func (ImpactedResourceSwitchPort) isImpactedResourceVariant() {}
+
+// ImpactedResourcePhysicalDisk is a variant of ImpactedResource.
+type ImpactedResourcePhysicalDisk struct {
+	Id string `json:"id" yaml:"id"`
+}
+
+func (ImpactedResourcePhysicalDisk) isImpactedResourceVariant() {}
+
+// ImpactedResourceInstance is a variant of ImpactedResource.
+type ImpactedResourceInstance struct {
+	Id string `json:"id" yaml:"id"`
+}
+
+func (ImpactedResourceInstance) isImpactedResourceVariant() {}
+
+// ImpactedResourceDisk is a variant of ImpactedResource.
+type ImpactedResourceDisk struct {
+	Id string `json:"id" yaml:"id"`
+}
+
+func (ImpactedResourceDisk) isImpactedResourceVariant() {}
+
+// ImpactedResourceImage is a variant of ImpactedResource.
+type ImpactedResourceImage struct {
+	Id string `json:"id" yaml:"id"`
+}
+
+func (ImpactedResourceImage) isImpactedResourceVariant() {}
+
+// ImpactedResourceSnapshot is a variant of ImpactedResource.
+type ImpactedResourceSnapshot struct {
+	Id string `json:"id" yaml:"id"`
+}
+
+func (ImpactedResourceSnapshot) isImpactedResourceVariant() {}
+
+// ImpactedResourceSilo is a variant of ImpactedResource.
+type ImpactedResourceSilo struct {
+	Id string `json:"id" yaml:"id"`
+}
+
+func (ImpactedResourceSilo) isImpactedResourceVariant() {}
+
+// ImpactedResource is aPI resource types which may be impacted by a problem.
+type ImpactedResource struct {
+	Value impactedResourceVariant
+}
+
+func (v ImpactedResource) ResourceType() ImpactedResourceResourceType {
+	switch v.Value.(type) {
+	case ImpactedResourceSled, *ImpactedResourceSled:
+		return ImpactedResourceResourceTypeSled
+	case ImpactedResourceSwitch, *ImpactedResourceSwitch:
+		return ImpactedResourceResourceTypeSwitch
+	case ImpactedResourceSwitchPort, *ImpactedResourceSwitchPort:
+		return ImpactedResourceResourceTypeSwitchPort
+	case ImpactedResourcePhysicalDisk, *ImpactedResourcePhysicalDisk:
+		return ImpactedResourceResourceTypePhysicalDisk
+	case ImpactedResourceInstance, *ImpactedResourceInstance:
+		return ImpactedResourceResourceTypeInstance
+	case ImpactedResourceDisk, *ImpactedResourceDisk:
+		return ImpactedResourceResourceTypeDisk
+	case ImpactedResourceImage, *ImpactedResourceImage:
+		return ImpactedResourceResourceTypeImage
+	case ImpactedResourceSnapshot, *ImpactedResourceSnapshot:
+		return ImpactedResourceResourceTypeSnapshot
+	case ImpactedResourceSilo, *ImpactedResourceSilo:
+		return ImpactedResourceResourceTypeSilo
+	default:
+		return ""
+	}
+}
+
+func (v *ImpactedResource) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+	type discriminator struct {
+		Type string `json:"resource_type"`
+	}
+	var d discriminator
+	if err := json.Unmarshal(data, &d); err != nil {
+		return err
+	}
+
+	var value impactedResourceVariant
+	switch d.Type {
+	case "sled":
+		value = &ImpactedResourceSled{}
+	case "switch":
+		value = &ImpactedResourceSwitch{}
+	case "switch_port":
+		value = &ImpactedResourceSwitchPort{}
+	case "physical_disk":
+		value = &ImpactedResourcePhysicalDisk{}
+	case "instance":
+		value = &ImpactedResourceInstance{}
+	case "disk":
+		value = &ImpactedResourceDisk{}
+	case "image":
+		value = &ImpactedResourceImage{}
+	case "snapshot":
+		value = &ImpactedResourceSnapshot{}
+	case "silo":
+		value = &ImpactedResourceSilo{}
+	default:
+		return fmt.Errorf(
+			"unknown variant %q, expected 'sled' or 'switch' or 'switch_port' or 'physical_disk' or 'instance' or 'disk' or 'image' or 'snapshot' or 'silo'",
+			d.Type,
+		)
+	}
+	if err := json.Unmarshal(data, value); err != nil {
+		return err
+	}
+	v.Value = value
+	return nil
+}
+
+func (v ImpactedResource) MarshalJSON() ([]byte, error) {
+	if v.Value == nil {
+		return []byte("null"), nil
+	}
+	m := make(map[string]any)
+	m["resource_type"] = v.ResourceType()
+	valueBytes, err := json.Marshal(v.Value)
+	if err != nil {
+		return nil, err
+	}
+	var valueMap map[string]any
+	if err := json.Unmarshal(valueBytes, &valueMap); err != nil {
+		return nil, err
+	}
+	for k, val := range valueMap {
+		m[k] = val
+	}
+	return json.Marshal(m)
+}
+
+// AsSled attempts to convert the ImpactedResource to a ImpactedResourceSled.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v ImpactedResource) AsSled() (*ImpactedResourceSled, bool) {
+	val, ok := v.Value.(*ImpactedResourceSled)
+	return val, ok
+}
+
+// AsSwitch attempts to convert the ImpactedResource to a ImpactedResourceSwitch.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v ImpactedResource) AsSwitch() (*ImpactedResourceSwitch, bool) {
+	val, ok := v.Value.(*ImpactedResourceSwitch)
+	return val, ok
+}
+
+// AsSwitchPort attempts to convert the ImpactedResource to a ImpactedResourceSwitchPort.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v ImpactedResource) AsSwitchPort() (*ImpactedResourceSwitchPort, bool) {
+	val, ok := v.Value.(*ImpactedResourceSwitchPort)
+	return val, ok
+}
+
+// AsPhysicalDisk attempts to convert the ImpactedResource to a ImpactedResourcePhysicalDisk.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v ImpactedResource) AsPhysicalDisk() (*ImpactedResourcePhysicalDisk, bool) {
+	val, ok := v.Value.(*ImpactedResourcePhysicalDisk)
+	return val, ok
+}
+
+// AsInstance attempts to convert the ImpactedResource to a ImpactedResourceInstance.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v ImpactedResource) AsInstance() (*ImpactedResourceInstance, bool) {
+	val, ok := v.Value.(*ImpactedResourceInstance)
+	return val, ok
+}
+
+// AsDisk attempts to convert the ImpactedResource to a ImpactedResourceDisk.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v ImpactedResource) AsDisk() (*ImpactedResourceDisk, bool) {
+	val, ok := v.Value.(*ImpactedResourceDisk)
+	return val, ok
+}
+
+// AsImage attempts to convert the ImpactedResource to a ImpactedResourceImage.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v ImpactedResource) AsImage() (*ImpactedResourceImage, bool) {
+	val, ok := v.Value.(*ImpactedResourceImage)
+	return val, ok
+}
+
+// AsSnapshot attempts to convert the ImpactedResource to a ImpactedResourceSnapshot.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v ImpactedResource) AsSnapshot() (*ImpactedResourceSnapshot, bool) {
+	val, ok := v.Value.(*ImpactedResourceSnapshot)
+	return val, ok
+}
+
+// AsSilo attempts to convert the ImpactedResource to a ImpactedResourceSilo.
+// Returns the variant and true if the conversion succeeded, nil and false otherwise.
+func (v ImpactedResource) AsSilo() (*ImpactedResourceSilo, bool) {
+	val, ok := v.Value.(*ImpactedResourceSilo)
+	return val, ok
+}
+
 // ImportBlocksBulkWrite is parameters for importing blocks with a bulk write
 //
 // Required fields:
@@ -7399,6 +7631,7 @@ type InstanceState string
 // - EnableJumboFrames
 // - Memory
 // - Ncpus
+// - ShutdownPolicy
 type InstanceUpdate struct {
 	// AutoRestartPolicy is the auto-restart policy for this instance.
 	//
@@ -7452,11 +7685,11 @@ type InstanceUpdate struct {
 	MulticastGroups []MulticastGroupJoinSpec `json:"multicast_groups" yaml:"multicast_groups"`
 	// Ncpus is the number of vCPUs to be allocated to the instance
 	Ncpus InstanceCpuCount `json:"ncpus" yaml:"ncpus"`
-	// ShutdownPolicy is the method by which the instance should be stopped. If omitted from the
-	// update request, the instance's existing shutdown policy is left as-is. Changes to
-	// soft-shutdown timeout do not affect instances that
-	// are already in the process of shutting down until their next start.
-	ShutdownPolicy InstanceShutdownPolicy `json:"shutdown_policy,omitzero" yaml:"shutdown_policy,omitzero"`
+	// ShutdownPolicy is the method by which the instance should be stopped. If `null`, the
+	// instance's shutdown policy is reset to the default value. Changes to soft-shutdown timeout do
+	// not affect instances that are already in
+	// the process of shutting down until their next start.
+	ShutdownPolicy *InstanceShutdownPolicy `json:"shutdown_policy" yaml:"shutdown_policy"`
 }
 
 // InterfaceNumUnknown is the type definition for a InterfaceNumUnknown.
@@ -9700,6 +9933,170 @@ type ProbeInfoResultsPage struct {
 	NextPage string `json:"next_page,omitempty" yaml:"next_page,omitempty"`
 }
 
+// Problem is an active or resolved problem detected by the fault management subsystem.
+//
+// Problems describe conditions in which some aspect of the system's operation is degraded. A
+// problem is either *active*, if the condition is still ongoing, or *resolved*, once the fault
+// management system has determined that the system is no longer impacted. The `state` field
+// indicates whether a given problem is active or has been
+// resolved. Resolved problems remain accessible for historical purposes.
+//
+// A problem's *impacts* refers to the resources which are affected by an active problem at a given
+// time. Both hardware resources (e.g. sleds, physical disks, switches, et cetera) and user-created
+// virtual resources (e.g. instances, virtual disks, and so on) may be impacted by a problem. The
+// list of impacted resources may change over time, as the system detects additional impacted
+// resources, or as resources recover due to automated or operator response to the problem. To view
+// the list of resources currently impacted by a problem, use the
+// `problem_impact_list` API endpoint.
+//
+// Problems may cause, and may be caused by, other problems. A problem may have multiple causes, and
+// may result in any number of other problems. The resolution of a problem that causes other
+// problems may, or may not, result in the resolution of the caused problems, depending on the
+// nature of the problem. Conversely, problems caused by another problem may be resolved without
+// resolving the causing problem, again depending on the nature of the particular issue. Use the
+// `problem_cause_list` and `problem_consequences_list` API endpoints to list any
+// problems causing or caused by a given problem, respectively.
+//
+// Alerts provide notifications regarding events that occurred over the course of an active problem.
+// To view the list of alerts generated by a problem, use the `problem_alert_list` API endpoint.
+// This list may be sorted
+// by the alert's timestamp to provide a chronological view of the problem.
+//
+// Support bundles may be attached to a problem to provide additional diagnostic data for operators
+// and Oxide support. Use the `problem_support_bundle_list` API endpoint to list the support bundles
+// attached to a problem.
+//
+// Required fields:
+// - ActionRequired
+// - Class
+// - Code
+// - Description
+// - Id
+// - Revision
+// - State
+// - Summary
+// - TimeCreated
+// - TimeModified
+// - TimeStateChanged
+type Problem struct {
+	// ActionRequired is a description of any actions an operator should take in response to this
+	// problem.
+	//
+	// This may change as the problem progresses.
+	ActionRequired string `json:"action_required" yaml:"action_required"`
+	// Class is the problem's class.
+	//
+	// Problem classes indicate the broad category of the issue that this problem represents, while
+	// its problem code represents the specific nature of the issue. The class is determined by the
+	// problem code: all problems with
+	// the same problem code will have the same class.
+	//
+	// Problem classes are represented by dot-separated strings, in which each segment is more
+	// specific than the last. For example, a problem related to a rack's power shelf will have the
+	// problem code `hardware.power_shelf`.
+	Class string `json:"class" yaml:"class"`
+	// Code is the problem code describing this problem.
+	//
+	// Problem codes are opaque numeric identifiers that indicate the nature of the issue a problem
+	// represents. They may be used to reference documentation and service instructions for that
+	// particular kind of problem, and to communicate with Oxide support. The problem code may
+	// change if the diagnosis of the problem changes, which
+	// creates a new revision.
+	Code *int `json:"code" yaml:"code"`
+	// Description is a longer human-readable description of the problem.
+	//
+	// This may change as the problem progresses.
+	Description string `json:"description" yaml:"description"`
+	// Id is unique, immutable, system-controlled identifier for each resource
+	Id string `json:"id" yaml:"id"`
+	// Revision is the current revision number of this problem.
+	//
+	// The revision number is incremented each time the problem is updated. Changes to a problem's
+	// impact list, description,
+	// and relationships with other problems all increment the revision number.
+	Revision *uint64 `json:"revision" yaml:"revision"`
+	// State is the current state of this problem.
+	State ProblemState `json:"state" yaml:"state"`
+	// Summary is a brief, human-readable summary of the problem.
+	//
+	// This is short enough to be used as a title. It is intended for display to humans, and is not
+	// a stable identifier.
+	// For a machine-consumable identifier, use the problem code field.
+	Summary string `json:"summary" yaml:"summary"`
+	// TimeCreated is timestamp when this resource was created
+	TimeCreated *time.Time `json:"time_created" yaml:"time_created"`
+	// TimeModified is timestamp when this resource was last modified
+	TimeModified *time.Time `json:"time_modified" yaml:"time_modified"`
+	// TimeStateChanged is the time at which this problem entered its current `state`.
+	//
+	// For an active problem, this is the time at which the problem was first detected. For a
+	// resolved problem, this
+	// is the time at which the problem was determined to be resolved.
+	TimeStateChanged *time.Time `json:"time_state_changed" yaml:"time_state_changed"`
+}
+
+// ProblemImpact is a resource impacted by a problem.
+//
+// Required fields:
+// - ProblemId
+// - Reason
+// - Resource
+// - RevisionAdded
+// - State
+// - TimeDetected
+// - TimeStateChanged
+type ProblemImpact struct {
+	// ProblemId is iD of the problem impacting this resource.
+	ProblemId string `json:"problem_id" yaml:"problem_id"`
+	// Reason is a human-readable summary of how this resource is impacted by the problem.
+	Reason string `json:"reason" yaml:"reason"`
+	// Resource is the impacted resource's type and ID.
+	Resource ImpactedResource `json:"resource" yaml:"resource"`
+	// RevisionAdded is the revision of the problem in which this impact was added.
+	RevisionAdded *uint64 `json:"revision_added" yaml:"revision_added"`
+	// State is whether or not the resource remains impacted by the problem.
+	State ImpactState `json:"state" yaml:"state"`
+	// TimeDetected is the time at which the system first determined this resource to be impacted by
+	// the problem.
+	//
+	//
+	// Note: impact to this resource may predate this timestamp. This represents the first time at
+	// which the system
+	// detected the impact to this resource and determine that it was due to this problem.
+	TimeDetected *time.Time `json:"time_detected" yaml:"time_detected"`
+	// TimeStateChanged is the time at which this impact entered its current `state`.
+	//
+	// For an impact that is still active, this is the same as `time_detected`. Otherwise, this is
+	// the time at
+	// which the resource recovered or was removed from service.
+	TimeStateChanged *time.Time `json:"time_state_changed" yaml:"time_state_changed"`
+}
+
+// ProblemImpactResultsPage is a single page of results
+//
+// Required fields:
+// - Items
+type ProblemImpactResultsPage struct {
+	// Items is list of items on this page of results
+	Items []ProblemImpact `json:"items" yaml:"items"`
+	// NextPage is token used to fetch the next page of results (if any)
+	NextPage string `json:"next_page,omitempty" yaml:"next_page,omitempty"`
+}
+
+// ProblemResultsPage is a single page of results
+//
+// Required fields:
+// - Items
+type ProblemResultsPage struct {
+	// Items is list of items on this page of results
+	Items []Problem `json:"items" yaml:"items"`
+	// NextPage is token used to fetch the next page of results (if any)
+	NextPage string `json:"next_page,omitempty" yaml:"next_page,omitempty"`
+}
+
+// ProblemState is the condition represented by the problem is still ongoing.
+type ProblemState string
+
 // Project is view of a Project
 //
 // Required fields:
@@ -9906,6 +10303,35 @@ type RackMembershipVersion uint64
 type RackResultsPage struct {
 	// Items is list of items on this page of results
 	Items []Rack `json:"items" yaml:"items"`
+	// NextPage is token used to fetch the next page of results (if any)
+	NextPage string `json:"next_page,omitempty" yaml:"next_page,omitempty"`
+}
+
+// RelatedProblem is a problem that is a cause or consequence of another problem
+//
+// Required fields:
+// - Id
+// - Reason
+// - RevisionAdded
+// - State
+type RelatedProblem struct {
+	// Id is iD of the related problem
+	Id string `json:"id" yaml:"id"`
+	// Reason is a human-readable summary of why the problems are related.
+	Reason string `json:"reason" yaml:"reason"`
+	// RevisionAdded is the revision of the requested problem in which this relationship was added.
+	RevisionAdded *uint64 `json:"revision_added" yaml:"revision_added"`
+	// State is the current state of the related problem.
+	State ProblemState `json:"state" yaml:"state"`
+}
+
+// RelatedProblemResultsPage is a single page of results
+//
+// Required fields:
+// - Items
+type RelatedProblemResultsPage struct {
+	// Items is list of items on this page of results
+	Items []RelatedProblem `json:"items" yaml:"items"`
 	// NextPage is token used to fetch the next page of results (if any)
 	NextPage string `json:"next_page,omitempty" yaml:"next_page,omitempty"`
 }
@@ -16090,6 +16516,83 @@ type SystemPolicyUpdateParams struct {
 	Body *FleetRolePolicy `json:"body,omitempty" yaml:"body,omitempty"`
 }
 
+// ProblemListParams is the request parameters for ProblemList
+type ProblemListParams struct {
+	Limit     *int              `json:"limit,omitempty"      yaml:"limit,omitempty"`
+	PageToken string            `json:"page_token,omitempty" yaml:"page_token,omitempty"`
+	SortBy    TimeAndIdSortMode `json:"sort_by,omitempty"    yaml:"sort_by,omitempty"`
+	State     ProblemState      `json:"state,omitempty"      yaml:"state,omitempty"`
+}
+
+// ProblemViewParams is the request parameters for ProblemView
+//
+// Required fields:
+// - ProblemId
+type ProblemViewParams struct {
+	ProblemId string `json:"problem_id,omitempty" yaml:"problem_id,omitempty"`
+}
+
+// ProblemAlertListParams is the request parameters for ProblemAlertList
+//
+// Required fields:
+// - ProblemId
+type ProblemAlertListParams struct {
+	ProblemId  string            `json:"problem_id,omitempty"  yaml:"problem_id,omitempty"`
+	AlertClass AlertSubscription `json:"alert_class,omitempty" yaml:"alert_class,omitempty"`
+	EndTime    *time.Time        `json:"end_time,omitempty"    yaml:"end_time,omitempty"`
+	Limit      *int              `json:"limit,omitempty"       yaml:"limit,omitempty"`
+	PageToken  string            `json:"page_token,omitempty"  yaml:"page_token,omitempty"`
+	SortBy     TimeAndIdSortMode `json:"sort_by,omitempty"     yaml:"sort_by,omitempty"`
+	StartTime  *time.Time        `json:"start_time,omitempty"  yaml:"start_time,omitempty"`
+}
+
+// ProblemCausesListParams is the request parameters for ProblemCausesList
+//
+// Required fields:
+// - ProblemId
+type ProblemCausesListParams struct {
+	ProblemId string       `json:"problem_id,omitempty" yaml:"problem_id,omitempty"`
+	Limit     *int         `json:"limit,omitempty"      yaml:"limit,omitempty"`
+	PageToken string       `json:"page_token,omitempty" yaml:"page_token,omitempty"`
+	SortBy    IdSortMode   `json:"sort_by,omitempty"    yaml:"sort_by,omitempty"`
+	State     ProblemState `json:"state,omitempty"      yaml:"state,omitempty"`
+}
+
+// ProblemConsequencesListParams is the request parameters for ProblemConsequencesList
+//
+// Required fields:
+// - ProblemId
+type ProblemConsequencesListParams struct {
+	ProblemId string       `json:"problem_id,omitempty" yaml:"problem_id,omitempty"`
+	Limit     *int         `json:"limit,omitempty"      yaml:"limit,omitempty"`
+	PageToken string       `json:"page_token,omitempty" yaml:"page_token,omitempty"`
+	SortBy    IdSortMode   `json:"sort_by,omitempty"    yaml:"sort_by,omitempty"`
+	State     ProblemState `json:"state,omitempty"      yaml:"state,omitempty"`
+}
+
+// ProblemImpactListParams is the request parameters for ProblemImpactList
+//
+// Required fields:
+// - ProblemId
+type ProblemImpactListParams struct {
+	ProblemId string      `json:"problem_id,omitempty" yaml:"problem_id,omitempty"`
+	Limit     *int        `json:"limit,omitempty"      yaml:"limit,omitempty"`
+	PageToken string      `json:"page_token,omitempty" yaml:"page_token,omitempty"`
+	SortBy    IdSortMode  `json:"sort_by,omitempty"    yaml:"sort_by,omitempty"`
+	State     ImpactState `json:"state,omitempty"      yaml:"state,omitempty"`
+}
+
+// ProblemSupportBundlesListParams is the request parameters for ProblemSupportBundlesList
+//
+// Required fields:
+// - ProblemId
+type ProblemSupportBundlesListParams struct {
+	ProblemId string            `json:"problem_id,omitempty" yaml:"problem_id,omitempty"`
+	Limit     *int              `json:"limit,omitempty"      yaml:"limit,omitempty"`
+	PageToken string            `json:"page_token,omitempty" yaml:"page_token,omitempty"`
+	SortBy    TimeAndIdSortMode `json:"sort_by,omitempty"    yaml:"sort_by,omitempty"`
+}
+
 // ScimTokenListParams is the request parameters for ScimTokenList
 //
 // Required fields:
@@ -19150,6 +19653,75 @@ func (p *SystemPolicyUpdateParams) Validate() error {
 	return nil
 }
 
+// Validate verifies all required fields for ProblemListParams are set
+func (p *ProblemListParams) Validate() error {
+	v := new(Validator)
+	if !v.IsValid() {
+		return fmt.Errorf("validation error:\n%v", v.Error())
+	}
+	return nil
+}
+
+// Validate verifies all required fields for ProblemViewParams are set
+func (p *ProblemViewParams) Validate() error {
+	v := new(Validator)
+	v.HasRequiredStr(string(p.ProblemId), "ProblemId")
+	if !v.IsValid() {
+		return fmt.Errorf("validation error:\n%v", v.Error())
+	}
+	return nil
+}
+
+// Validate verifies all required fields for ProblemAlertListParams are set
+func (p *ProblemAlertListParams) Validate() error {
+	v := new(Validator)
+	v.HasRequiredStr(string(p.ProblemId), "ProblemId")
+	if !v.IsValid() {
+		return fmt.Errorf("validation error:\n%v", v.Error())
+	}
+	return nil
+}
+
+// Validate verifies all required fields for ProblemCausesListParams are set
+func (p *ProblemCausesListParams) Validate() error {
+	v := new(Validator)
+	v.HasRequiredStr(string(p.ProblemId), "ProblemId")
+	if !v.IsValid() {
+		return fmt.Errorf("validation error:\n%v", v.Error())
+	}
+	return nil
+}
+
+// Validate verifies all required fields for ProblemConsequencesListParams are set
+func (p *ProblemConsequencesListParams) Validate() error {
+	v := new(Validator)
+	v.HasRequiredStr(string(p.ProblemId), "ProblemId")
+	if !v.IsValid() {
+		return fmt.Errorf("validation error:\n%v", v.Error())
+	}
+	return nil
+}
+
+// Validate verifies all required fields for ProblemImpactListParams are set
+func (p *ProblemImpactListParams) Validate() error {
+	v := new(Validator)
+	v.HasRequiredStr(string(p.ProblemId), "ProblemId")
+	if !v.IsValid() {
+		return fmt.Errorf("validation error:\n%v", v.Error())
+	}
+	return nil
+}
+
+// Validate verifies all required fields for ProblemSupportBundlesListParams are set
+func (p *ProblemSupportBundlesListParams) Validate() error {
+	v := new(Validator)
+	v.HasRequiredStr(string(p.ProblemId), "ProblemId")
+	if !v.IsValid() {
+		return fmt.Errorf("validation error:\n%v", v.Error())
+	}
+	return nil
+}
+
 // Validate verifies all required fields for ScimTokenListParams are set
 func (p *ScimTokenListParams) Validate() error {
 	v := new(Validator)
@@ -20562,6 +21134,44 @@ const IdpMetadataSourceTypeBase64EncodedXml IdpMetadataSourceType = "base64_enco
 // ImageSourceTypeSnapshot represents the ImageSourceType `"snapshot"`.
 const ImageSourceTypeSnapshot ImageSourceType = "snapshot"
 
+// ImpactStateActive represents the ImpactState `"active"`.
+const ImpactStateActive ImpactState = "active"
+
+// ImpactStateRecovered represents the ImpactState `"recovered"`.
+const ImpactStateRecovered ImpactState = "recovered"
+
+// ImpactStateOutOfService represents the ImpactState `"out_of_service"`.
+const ImpactStateOutOfService ImpactState = "out_of_service"
+
+// ImpactedResourceResourceTypeSled represents the ImpactedResourceResourceType `"sled"`.
+const ImpactedResourceResourceTypeSled ImpactedResourceResourceType = "sled"
+
+// ImpactedResourceResourceTypeSwitch represents the ImpactedResourceResourceType `"switch"`.
+const ImpactedResourceResourceTypeSwitch ImpactedResourceResourceType = "switch"
+
+// ImpactedResourceResourceTypeSwitchPort represents the ImpactedResourceResourceType
+// `"switch_port"`.
+const ImpactedResourceResourceTypeSwitchPort ImpactedResourceResourceType = "switch_port"
+
+// ImpactedResourceResourceTypePhysicalDisk represents the ImpactedResourceResourceType
+// `"physical_disk"`.
+const ImpactedResourceResourceTypePhysicalDisk ImpactedResourceResourceType = "physical_disk"
+
+// ImpactedResourceResourceTypeInstance represents the ImpactedResourceResourceType `"instance"`.
+const ImpactedResourceResourceTypeInstance ImpactedResourceResourceType = "instance"
+
+// ImpactedResourceResourceTypeDisk represents the ImpactedResourceResourceType `"disk"`.
+const ImpactedResourceResourceTypeDisk ImpactedResourceResourceType = "disk"
+
+// ImpactedResourceResourceTypeImage represents the ImpactedResourceResourceType `"image"`.
+const ImpactedResourceResourceTypeImage ImpactedResourceResourceType = "image"
+
+// ImpactedResourceResourceTypeSnapshot represents the ImpactedResourceResourceType `"snapshot"`.
+const ImpactedResourceResourceTypeSnapshot ImpactedResourceResourceType = "snapshot"
+
+// ImpactedResourceResourceTypeSilo represents the ImpactedResourceResourceType `"silo"`.
+const ImpactedResourceResourceTypeSilo ImpactedResourceResourceType = "silo"
+
 // ImportExportPolicyTypeNoFiltering represents the ImportExportPolicyType `"no_filtering"`.
 const ImportExportPolicyTypeNoFiltering ImportExportPolicyType = "no_filtering"
 
@@ -20810,6 +21420,12 @@ const ProbeExternalIpKindFloating ProbeExternalIpKind = "floating"
 
 // ProbeExternalIpKindEphemeral represents the ProbeExternalIpKind `"ephemeral"`.
 const ProbeExternalIpKindEphemeral ProbeExternalIpKind = "ephemeral"
+
+// ProblemStateActive represents the ProblemState `"active"`.
+const ProblemStateActive ProblemState = "active"
+
+// ProblemStateResolved represents the ProblemState `"resolved"`.
+const ProblemStateResolved ProblemState = "resolved"
 
 // ProjectRoleAdmin represents the ProjectRole `"admin"`.
 const ProjectRoleAdmin ProjectRole = "admin"
@@ -21498,6 +22114,27 @@ var ImageSourceTypeCollection = []ImageSourceType{
 	ImageSourceTypeSnapshot,
 }
 
+// ImpactStateCollection is the collection of all ImpactState values.
+var ImpactStateCollection = []ImpactState{
+	ImpactStateActive,
+	ImpactStateOutOfService,
+	ImpactStateRecovered,
+}
+
+// ImpactedResourceResourceTypeCollection is the collection of all ImpactedResourceResourceType
+// values.
+var ImpactedResourceResourceTypeCollection = []ImpactedResourceResourceType{
+	ImpactedResourceResourceTypeDisk,
+	ImpactedResourceResourceTypeImage,
+	ImpactedResourceResourceTypeInstance,
+	ImpactedResourceResourceTypePhysicalDisk,
+	ImpactedResourceResourceTypeSilo,
+	ImpactedResourceResourceTypeSled,
+	ImpactedResourceResourceTypeSnapshot,
+	ImpactedResourceResourceTypeSwitch,
+	ImpactedResourceResourceTypeSwitchPort,
+}
+
 // ImportExportPolicyTypeCollection is the collection of all ImportExportPolicyType values.
 var ImportExportPolicyTypeCollection = []ImportExportPolicyType{
 	ImportExportPolicyTypeAllow,
@@ -21691,6 +22328,12 @@ var ProbeExternalIpKindCollection = []ProbeExternalIpKind{
 	ProbeExternalIpKindEphemeral,
 	ProbeExternalIpKindFloating,
 	ProbeExternalIpKindSnat,
+}
+
+// ProblemStateCollection is the collection of all ProblemState values.
+var ProblemStateCollection = []ProblemState{
+	ProblemStateActive,
+	ProblemStateResolved,
 }
 
 // ProjectRoleCollection is the collection of all ProjectRole values.

@@ -13138,6 +13138,581 @@ func (c *Client) SystemPolicyUpdate(
 	return &body, nil
 }
 
+// ProblemList: List problems
+// Problems are sorted by the time at which they were detected, and may be filtered by state.
+//
+// To iterate over all pages, use the `ProblemListAllPages` method, instead.
+func (c *Client) ProblemList(
+	ctx context.Context,
+	params ProblemListParams,
+) (*ProblemResultsPage, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	// Create the request
+	req, err := c.buildRequest(
+		ctx,
+		nil,
+		"GET",
+		resolveRelative(c.host, "/v1/system/problems"),
+		map[string]string{},
+		map[string]string{
+			"limit":      PointerIntToStr(params.Limit),
+			"page_token": params.PageToken,
+			"sort_by":    string(params.SortBy),
+			"state":      string(params.State),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error building request: %v", err)
+	}
+
+	// Send the request.
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Create and return an HTTPError when an error response code is received.
+	if err := NewHTTPError(resp); err != nil {
+		return nil, err
+	}
+
+	// Decode the body from the response.
+	if resp.Body == nil {
+		return nil, errors.New("request returned an empty body in the response")
+	}
+
+	var body ProblemResultsPage
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("error decoding response body: %v", err)
+	}
+
+	// Return the response.
+	return &body, nil
+}
+
+// ProblemListAllPages: List problems
+// Problems are sorted by the time at which they were detected, and may be filtered by state.
+//
+// This method is a wrapper around the `ProblemList` method.
+// This method returns all the pages at once.
+func (c *Client) ProblemListAllPages(
+	ctx context.Context,
+	params ProblemListParams,
+) ([]Problem, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	var allPages []Problem
+	params.PageToken = ""
+	params.Limit = NewPointer(100)
+	for {
+		page, err := c.ProblemList(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		allPages = append(allPages, page.Items...)
+		if page.NextPage == "" || page.NextPage == params.PageToken {
+			break
+		}
+		params.PageToken = page.NextPage
+	}
+
+	return allPages, nil
+}
+
+// ProblemView: Fetch problem
+func (c *Client) ProblemView(ctx context.Context, params ProblemViewParams) (*Problem, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	// Create the request
+	req, err := c.buildRequest(
+		ctx,
+		nil,
+		"GET",
+		resolveRelative(c.host, "/v1/system/problems/{{.problem_id}}"),
+		map[string]string{
+			"problem_id": params.ProblemId,
+		},
+		map[string]string{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error building request: %v", err)
+	}
+
+	// Send the request.
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Create and return an HTTPError when an error response code is received.
+	if err := NewHTTPError(resp); err != nil {
+		return nil, err
+	}
+
+	// Decode the body from the response.
+	if resp.Body == nil {
+		return nil, errors.New("request returned an empty body in the response")
+	}
+
+	var body Problem
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("error decoding response body: %v", err)
+	}
+
+	// Return the response.
+	return &body, nil
+}
+
+// ProblemAlertList: List alerts for problem
+// Lists alerts associated with the requested problem. Alerts may be filtered by alert class or
+// alert class glob
+// and by an inclusive creation time range.
+//
+// To iterate over all pages, use the `ProblemAlertListAllPages` method, instead.
+func (c *Client) ProblemAlertList(
+	ctx context.Context,
+	params ProblemAlertListParams,
+) (*AlertResultsPage, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	// Create the request
+	req, err := c.buildRequest(
+		ctx,
+		nil,
+		"GET",
+		resolveRelative(c.host, "/v1/system/problems/{{.problem_id}}/alerts"),
+		map[string]string{
+			"problem_id": params.ProblemId,
+		},
+		map[string]string{
+			"alert_class": string(params.AlertClass),
+			"end_time":    PointerTimeToStr(params.EndTime),
+			"limit":       PointerIntToStr(params.Limit),
+			"page_token":  params.PageToken,
+			"sort_by":     string(params.SortBy),
+			"start_time":  PointerTimeToStr(params.StartTime),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error building request: %v", err)
+	}
+
+	// Send the request.
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Create and return an HTTPError when an error response code is received.
+	if err := NewHTTPError(resp); err != nil {
+		return nil, err
+	}
+
+	// Decode the body from the response.
+	if resp.Body == nil {
+		return nil, errors.New("request returned an empty body in the response")
+	}
+
+	var body AlertResultsPage
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("error decoding response body: %v", err)
+	}
+
+	// Return the response.
+	return &body, nil
+}
+
+// ProblemAlertListAllPages: List alerts for problem
+// Lists alerts associated with the requested problem. Alerts may be filtered by alert class or
+// alert class glob
+// and by an inclusive creation time range.
+//
+// This method is a wrapper around the `ProblemAlertList` method.
+// This method returns all the pages at once.
+func (c *Client) ProblemAlertListAllPages(
+	ctx context.Context,
+	params ProblemAlertListParams,
+) ([]Alert, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	var allPages []Alert
+	params.PageToken = ""
+	params.Limit = NewPointer(100)
+	for {
+		page, err := c.ProblemAlertList(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		allPages = append(allPages, page.Items...)
+		if page.NextPage == "" || page.NextPage == params.PageToken {
+			break
+		}
+		params.PageToken = page.NextPage
+	}
+
+	return allPages, nil
+}
+
+// ProblemCausesList: List causes of problem
+// Returns any other problems which are the causes of the specified problem. If the specified
+// problem has no
+// causes, this list may be empty.
+//
+// To iterate over all pages, use the `ProblemCausesListAllPages` method, instead.
+func (c *Client) ProblemCausesList(
+	ctx context.Context,
+	params ProblemCausesListParams,
+) (*RelatedProblemResultsPage, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	// Create the request
+	req, err := c.buildRequest(
+		ctx,
+		nil,
+		"GET",
+		resolveRelative(c.host, "/v1/system/problems/{{.problem_id}}/causes"),
+		map[string]string{
+			"problem_id": params.ProblemId,
+		},
+		map[string]string{
+			"limit":      PointerIntToStr(params.Limit),
+			"page_token": params.PageToken,
+			"sort_by":    string(params.SortBy),
+			"state":      string(params.State),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error building request: %v", err)
+	}
+
+	// Send the request.
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Create and return an HTTPError when an error response code is received.
+	if err := NewHTTPError(resp); err != nil {
+		return nil, err
+	}
+
+	// Decode the body from the response.
+	if resp.Body == nil {
+		return nil, errors.New("request returned an empty body in the response")
+	}
+
+	var body RelatedProblemResultsPage
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("error decoding response body: %v", err)
+	}
+
+	// Return the response.
+	return &body, nil
+}
+
+// ProblemCausesListAllPages: List causes of problem
+// Returns any other problems which are the causes of the specified problem. If the specified
+// problem has no
+// causes, this list may be empty.
+//
+// This method is a wrapper around the `ProblemCausesList` method.
+// This method returns all the pages at once.
+func (c *Client) ProblemCausesListAllPages(
+	ctx context.Context,
+	params ProblemCausesListParams,
+) ([]RelatedProblem, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	var allPages []RelatedProblem
+	params.PageToken = ""
+	params.Limit = NewPointer(100)
+	for {
+		page, err := c.ProblemCausesList(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		allPages = append(allPages, page.Items...)
+		if page.NextPage == "" || page.NextPage == params.PageToken {
+			break
+		}
+		params.PageToken = page.NextPage
+	}
+
+	return allPages, nil
+}
+
+// ProblemConsequencesList: List consequences of problem
+// Returns any other problems which are caused by the specified problem. If no other problem is
+// caused by the
+// specified problem, then this list may be empty.
+//
+// To iterate over all pages, use the `ProblemConsequencesListAllPages` method, instead.
+func (c *Client) ProblemConsequencesList(
+	ctx context.Context,
+	params ProblemConsequencesListParams,
+) (*RelatedProblemResultsPage, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	// Create the request
+	req, err := c.buildRequest(
+		ctx,
+		nil,
+		"GET",
+		resolveRelative(c.host, "/v1/system/problems/{{.problem_id}}/consequences"),
+		map[string]string{
+			"problem_id": params.ProblemId,
+		},
+		map[string]string{
+			"limit":      PointerIntToStr(params.Limit),
+			"page_token": params.PageToken,
+			"sort_by":    string(params.SortBy),
+			"state":      string(params.State),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error building request: %v", err)
+	}
+
+	// Send the request.
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Create and return an HTTPError when an error response code is received.
+	if err := NewHTTPError(resp); err != nil {
+		return nil, err
+	}
+
+	// Decode the body from the response.
+	if resp.Body == nil {
+		return nil, errors.New("request returned an empty body in the response")
+	}
+
+	var body RelatedProblemResultsPage
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("error decoding response body: %v", err)
+	}
+
+	// Return the response.
+	return &body, nil
+}
+
+// ProblemConsequencesListAllPages: List consequences of problem
+// Returns any other problems which are caused by the specified problem. If no other problem is
+// caused by the
+// specified problem, then this list may be empty.
+//
+// This method is a wrapper around the `ProblemConsequencesList` method.
+// This method returns all the pages at once.
+func (c *Client) ProblemConsequencesListAllPages(
+	ctx context.Context,
+	params ProblemConsequencesListParams,
+) ([]RelatedProblem, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	var allPages []RelatedProblem
+	params.PageToken = ""
+	params.Limit = NewPointer(100)
+	for {
+		page, err := c.ProblemConsequencesList(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		allPages = append(allPages, page.Items...)
+		if page.NextPage == "" || page.NextPage == params.PageToken {
+			break
+		}
+		params.PageToken = page.NextPage
+	}
+
+	return allPages, nil
+}
+
+// ProblemImpactList: List resources impacted by problem
+//
+// To iterate over all pages, use the `ProblemImpactListAllPages` method, instead.
+func (c *Client) ProblemImpactList(
+	ctx context.Context,
+	params ProblemImpactListParams,
+) (*ProblemImpactResultsPage, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	// Create the request
+	req, err := c.buildRequest(
+		ctx,
+		nil,
+		"GET",
+		resolveRelative(c.host, "/v1/system/problems/{{.problem_id}}/impacts"),
+		map[string]string{
+			"problem_id": params.ProblemId,
+		},
+		map[string]string{
+			"limit":      PointerIntToStr(params.Limit),
+			"page_token": params.PageToken,
+			"sort_by":    string(params.SortBy),
+			"state":      string(params.State),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error building request: %v", err)
+	}
+
+	// Send the request.
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Create and return an HTTPError when an error response code is received.
+	if err := NewHTTPError(resp); err != nil {
+		return nil, err
+	}
+
+	// Decode the body from the response.
+	if resp.Body == nil {
+		return nil, errors.New("request returned an empty body in the response")
+	}
+
+	var body ProblemImpactResultsPage
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("error decoding response body: %v", err)
+	}
+
+	// Return the response.
+	return &body, nil
+}
+
+// ProblemImpactListAllPages: List resources impacted by problem
+//
+// This method is a wrapper around the `ProblemImpactList` method.
+// This method returns all the pages at once.
+func (c *Client) ProblemImpactListAllPages(
+	ctx context.Context,
+	params ProblemImpactListParams,
+) ([]ProblemImpact, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	var allPages []ProblemImpact
+	params.PageToken = ""
+	params.Limit = NewPointer(100)
+	for {
+		page, err := c.ProblemImpactList(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		allPages = append(allPages, page.Items...)
+		if page.NextPage == "" || page.NextPage == params.PageToken {
+			break
+		}
+		params.PageToken = page.NextPage
+	}
+
+	return allPages, nil
+}
+
+// ProblemSupportBundlesList: List support bundles attached to problem
+//
+// To iterate over all pages, use the `ProblemSupportBundlesListAllPages` method, instead.
+func (c *Client) ProblemSupportBundlesList(
+	ctx context.Context,
+	params ProblemSupportBundlesListParams,
+) (*SupportBundleInfoResultsPage, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	// Create the request
+	req, err := c.buildRequest(
+		ctx,
+		nil,
+		"GET",
+		resolveRelative(c.host, "/v1/system/problems/{{.problem_id}}/support-bundles"),
+		map[string]string{
+			"problem_id": params.ProblemId,
+		},
+		map[string]string{
+			"limit":      PointerIntToStr(params.Limit),
+			"page_token": params.PageToken,
+			"sort_by":    string(params.SortBy),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error building request: %v", err)
+	}
+
+	// Send the request.
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Create and return an HTTPError when an error response code is received.
+	if err := NewHTTPError(resp); err != nil {
+		return nil, err
+	}
+
+	// Decode the body from the response.
+	if resp.Body == nil {
+		return nil, errors.New("request returned an empty body in the response")
+	}
+
+	var body SupportBundleInfoResultsPage
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("error decoding response body: %v", err)
+	}
+
+	// Return the response.
+	return &body, nil
+}
+
+// ProblemSupportBundlesListAllPages: List support bundles attached to problem
+//
+// This method is a wrapper around the `ProblemSupportBundlesList` method.
+// This method returns all the pages at once.
+func (c *Client) ProblemSupportBundlesListAllPages(
+	ctx context.Context,
+	params ProblemSupportBundlesListParams,
+) ([]SupportBundleInfo, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	var allPages []SupportBundleInfo
+	params.PageToken = ""
+	params.Limit = NewPointer(100)
+	for {
+		page, err := c.ProblemSupportBundlesList(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		allPages = append(allPages, page.Items...)
+		if page.NextPage == "" || page.NextPage == params.PageToken {
+			break
+		}
+		params.PageToken = page.NextPage
+	}
+
+	return allPages, nil
+}
+
 // ScimTokenList: List SCIM tokens
 // Specify the silo by name or ID using the `silo` query parameter.
 func (c *Client) ScimTokenList(
